@@ -1,24 +1,23 @@
-/*
-Copyright © 2026 SFMand HERE <sultanfbm12@gmail.com>
-*/
 package cmd
 
 import (
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
 )
 
+var (
+	fromPath string
+	toPath   string
+)
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "logts",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "logts - CLI file compression tool",
+	Long:  `A CLI log archiving tool built with go, used to process file compression to .tar.gz`,
+	RunE:  start,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -26,10 +25,17 @@ to quickly create a Cobra application.`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		log.Printf("Error occurred while running program: %v\n", err)
 		os.Exit(1)
 	}
 }
 
+func start(cmd *cobra.Command, args []string) error {
+	return targzComp(&fromPath, &toPath)
+}
+
 func init() {
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.PersistentFlags().StringVar(&fromPath, "from", "", "path of directory to compress")
+	rootCmd.MarkPersistentFlagRequired("from")
+	rootCmd.PersistentFlags().StringVar(&toPath, "to", "", "path of directory to send compressed folder (if omitted, will use same directory as \"from\" path)")
 }
