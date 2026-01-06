@@ -1,4 +1,4 @@
-module logts
+module github.com/SFMand/logts
 
 go 1.25.5
 

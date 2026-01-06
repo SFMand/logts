@@ -15,7 +15,7 @@ This project was created to practice Go and its concurrency features (`goroutine
 ### Options (Pick One)
 1. Install via Go: 
       
-        go install https://github.com/SFMand/logts@latest
+        go install github.com/SFMand/logts@latest
 
 2. Build the binary file from source:
 
