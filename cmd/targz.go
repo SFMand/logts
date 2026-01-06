@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 )
@@ -37,8 +36,8 @@ func targzComp(fromPath *string, toPath *string) error {
 func compressF(fromPath *string, toPath *string) error {
 
 	slog.Info("logts - started process", "src", *fromPath, "des", *toPath)
-
-	output, err := os.Create(*toPath + "/" + archiveName(fromPath))
+	destPath := filepath.Join(*toPath, archiveName(fromPath))
+	output, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
@@ -80,7 +79,7 @@ func createArchive(fromPath *string, buf io.Writer) error {
 		done <- true
 	}()
 
-	err := filepath.WalkDir(*fromPath, func(path string, d fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(*fromPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -108,7 +107,7 @@ func createArchive(fromPath *string, buf io.Writer) error {
 	close(results)
 	<-done
 
-	return err
+	return walkErr
 }
 
 func worker(jobs <-chan Job, results chan<- Result, wg *sync.WaitGroup) {
@@ -121,8 +120,8 @@ func worker(jobs <-chan Job, results chan<- Result, wg *sync.WaitGroup) {
 		}
 		header, err := tar.FileInfoHeader(job.FInfo, job.FInfo.Name())
 		if err != nil {
-			results <- Result{Err: err}
 			file.Close()
+			results <- Result{Err: err}
 			continue
 		}
 		header.Name = job.RelPath
@@ -149,14 +148,8 @@ func writeTar(res Result, tarw *tar.Writer) {
 }
 
 func archiveName(path *string) string {
-	newPath := strings.Split(*path, "/")
-	date := time.Now().Format(time.DateOnly)
-	times := time.Now().Format(time.TimeOnly)
+	baseName := filepath.Base(*path)
+	timeStamp := time.Now().Format("20060102-150405")
 
-	return fmt.Sprintf("%s_%s-%s-%s.tar.gz",
-		"logts",
-		newPath[len(newPath)-1],
-		strings.ReplaceAll(date, "-", ""),
-		strings.ReplaceAll(times, ":", ""),
-	)
+	return fmt.Sprintf("logts_%s-%s.tar.gz", baseName, timeStamp)
 }
