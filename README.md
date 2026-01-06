@@ -27,7 +27,7 @@ This project was created to practice Go and its concurrency features (`goroutine
 You can install the latest version with a single command:
 
 
-        curl -sfL [https://raw.githubusercontent.com/SFMand/logts/main/install.sh](https://raw.githubusercontent.com/SFMand/logts/main/install.sh) | sh
+        curl -sfL "https://raw.githubusercontent.com/SFMand/logts/main/install.sh" | sh
 ### Usage
 The tool accepts a source directory and a destination path, source is required, but destination can be omitted, which would produce the archive in cwd.
 
