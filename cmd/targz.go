@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,6 +13,17 @@ import (
 	"sync"
 	"time"
 )
+
+type Job struct {
+	FullPath string
+	RelPath  string
+	FInfo    fs.FileInfo
+}
+type Result struct {
+	File   *os.File
+	Header *tar.Header
+	Err    error
+}
 
 var logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
@@ -23,8 +35,6 @@ func targzComp(fromPath *string, toPath *string) error {
 }
 
 func compressF(fromPath *string, toPath *string) error {
-	*fromPath = strings.TrimSuffix(*fromPath, "/")
-	*toPath = strings.TrimSuffix(*toPath, "/")
 
 	slog.Info("logts - started process", "src", *fromPath, "des", *toPath)
 
@@ -48,69 +58,94 @@ func createArchive(fromPath *string, buf io.Writer) error {
 	tarw := tar.NewWriter(gzipw)
 	defer tarw.Close()
 
-	filesDir, err := os.ReadDir(*fromPath)
-	if err != nil {
-		return err
-	}
+	jobs := make(chan Job)
+	results := make(chan Result)
+	done := make(chan bool)
+
+	numOfWorker := 4
 	var wg sync.WaitGroup
-	var mu sync.Mutex
-	for _, file := range filesDir {
+	for range numOfWorker {
 		wg.Add(1)
-		go addFile(file, fromPath, tarw, &wg, &mu)
+		go worker(jobs, results, &wg)
 	}
 
-	wg.Wait()
+	go func() {
+		for res := range results {
+			if res.Err != nil {
+				slog.Error("logts - error processing file", "errmsg", res.Err)
+				continue
+			}
+			writeTar(res, tarw)
+		}
+		done <- true
+	}()
 
-	return nil
+	err := filepath.WalkDir(*fromPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(*fromPath, path)
+		if err != nil {
+			return err
+		}
+		jobs <- Job{
+			FullPath: path,
+			RelPath:  filepath.ToSlash(relPath),
+			FInfo:    info,
+		}
+		return nil
+	})
+
+	close(jobs)
+	wg.Wait()
+	close(results)
+	<-done
+
+	return err
 }
 
-func addFile(entry os.DirEntry, filePath *string, tarw *tar.Writer, wg *sync.WaitGroup, mu *sync.Mutex) {
+func worker(jobs <-chan Job, results chan<- Result, wg *sync.WaitGroup) {
 	defer wg.Done()
-
-	fullFilePath := filepath.Join(*filePath, entry.Name())
-
-	slog.Info("logts - started file", "file", fullFilePath)
-
-	file, err := os.Open(fullFilePath)
-	if err != nil {
-		slog.Error("logts - error processing file 1", "file", fullFilePath, "errmsg", err.Error())
-		return
+	for job := range jobs {
+		file, err := os.Open(job.FullPath)
+		if err != nil {
+			results <- Result{Err: err}
+			continue
+		}
+		header, err := tar.FileInfoHeader(job.FInfo, job.FInfo.Name())
+		if err != nil {
+			results <- Result{Err: err}
+			file.Close()
+			continue
+		}
+		header.Name = job.RelPath
+		results <- Result{
+			File:   file,
+			Header: header,
+		}
 	}
-	defer file.Close()
+}
 
-	fileInfo, err := file.Stat()
+func writeTar(res Result, tarw *tar.Writer) {
+	defer res.File.Close()
 
-	if err != nil {
-		slog.Error("logts - error processing file 2", "file", fullFilePath, "errmsg", err.Error())
-		return
-	}
-	relPath, err := filepath.Rel(fromPath, fullFilePath)
-	if err != nil {
-		slog.Error("logts - error processing file 1", "file", fullFilePath, "errmsg", err.Error())
-		return
-	}
-	header, err := tar.FileInfoHeader(fileInfo, fileInfo.Name())
-
-	if err != nil {
-		slog.Error("logts - error processing file 3", "file", fullFilePath, "errmsg", err.Error())
-		return
-	}
-
-	header.Name = filepath.ToSlash(relPath)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	if err := tarw.WriteHeader(header); err != nil {
-		slog.Error("logts - error processing file 4", "file", fullFilePath, "errmsg", err.Error())
+	if err := tarw.WriteHeader(res.Header); err != nil {
+		slog.Error("logts - header write error", "file", res.Header.Name, "errmsg", err)
 		return
 	}
 
-	if _, err := io.Copy(tarw, file); err != nil {
-		slog.Error("logts - error processing file 5", "file", fullFilePath, "errmsg", err.Error())
+	if _, err := io.Copy(tarw, res.File); err != nil {
+		slog.Error("logts - copy error", "file", res.Header.Name, "errmsg", err)
 		return
 	}
-	slog.Info("logts - finished processing file, success", "file", fullFilePath)
+	slog.Info("logts - file archived, success", "file", res.Header.Name)
 }
 
 func archiveName(path *string) string {
