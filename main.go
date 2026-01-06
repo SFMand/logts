@@ -1,6 +1,6 @@
 package main
 
-import "logts/cmd"
+import "github.com/SFMand/logts/cmd"
 
 func main() {
 	cmd.Execute()
