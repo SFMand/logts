@@ -37,5 +37,5 @@ func start(cmd *cobra.Command, args []string) error {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&fromPath, "from", "", "path of directory to compress")
 	rootCmd.MarkPersistentFlagRequired("from")
-	rootCmd.PersistentFlags().StringVar(&toPath, "to", "", "path of directory to send compressed folder (if omitted, will use same directory as \"from\" path)")
+	rootCmd.PersistentFlags().StringVar(&toPath, "to", "", "path of directory to send compressed folder (if omitted, will use cwd)")
 }
