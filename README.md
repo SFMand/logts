@@ -13,7 +13,7 @@ This project was created to practice Go and its concurrency features (`goroutine
 
 ## Installation
 ### Options (Pick One)
-1. Install via Go: 
+1. Install via Go (this would make appear in go/bin): 
       
         go install github.com/SFMand/logts@latest
 
@@ -23,6 +23,11 @@ This project was created to practice Go and its concurrency features (`goroutine
         cd logts
         go build -o main.go
 
+3. Automatic Install (Linux/macOS)
+You can install the latest version with a single command:
+
+
+        curl -sfL [https://raw.githubusercontent.com/SFMand/logts/main/install.sh](https://raw.githubusercontent.com/SFMand/logts/main/install.sh) | sh
 ### Usage
 The tool accepts a source directory and a destination path, source is required, but destination can be omitted, which would produce the archive in cwd.
 
